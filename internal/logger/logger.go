@@ -1,11 +1,13 @@
-package main
+package logger
 
 import (
+	"net/http"
+
 	"go.uber.org/zap"
 )
 
 // global wtf
-var Log *zap.Logger = zap.Nop()
+var Log *zap.Logger = zap.NewNop()
 
 func Initialize(level string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
@@ -23,4 +25,14 @@ func Initialize(level string) error {
 
 	Log = zl
 	return nil
+}
+
+func RequestLogger(h http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Log.Debug("got incoming HTTP request",
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+		)
+		h(w, r)
+	})
 }
