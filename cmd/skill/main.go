@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -53,10 +54,29 @@ func webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	text := "Для вас нет новых сообщений."
+	// первый запрос новой сессии
+	if req.Session.New {
+		// обрабатываем поле Timezone запроса
+		tz, err := time.LoadLocation(req.Timezone)
+		if err != nil {
+			logger.Log.Debug("cannot parse timezone")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// получаем текущее время в часовом поясе пользователя
+		now := time.Now().In(tz)
+		hour, minute, _ := now.Clock()
+
+		// формируем текст ответа
+		text = fmt.Sprintf("Точное время %d часов, %d минут. %s", hour, minute, text)
+	}
+
 	// заполняем модель ответа
 	resp := models.Response{
 		Response: models.ResponsePayload{
-			Text: "Извините, я пока ничего не умею",
+			Text: text, // Алиса проговорит новый текст
 		},
 		Version: "1.0",
 	}
@@ -80,7 +100,6 @@ func gzipMiddleware(h http.HandlerFunc) http.HandlerFunc {
 
 		// проверяем, что клиент умеет получать от сервера сжатые данные в формате gzip
 		acceptEncoding := r.Header.Get("Accept-Encoding")
-		fmt.Println("!", r.Header)
 		supportsGzip := strings.Contains(acceptEncoding, "gzip")
 		if supportsGzip {
 			// оборачиваем оригинальный http.ResponseWriter новым с поддержкой сжатия
